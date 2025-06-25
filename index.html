@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Interactive graphs JSON</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <div id="myPlot" style="width:100%;max-width:700px"></div>
+
+  <script>
+    // URL для необработанного файла data.json на GitHub
+    const url = 'https://raw.githubusercontent.com/USERNAME/REPOSITORY/main/data.json  https://raw.github.com/snekster/menu.git/main/menu.json';
+
+    fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        const plotData = [{
+          x: data.x,
+          y: data.y,
+          type: 'bar'
+        }];
+
+        const layout = {
+          title: 'Продажи фруктов'
+        };
+
+        Plotly.newPlot('myPlot', plotData, layout);
+      });
+  </script>
+</body>
+</html>
