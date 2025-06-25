@@ -4,15 +4,16 @@
   <meta charset="UTF-8">
   <title>Интерактивное меню</title>
   
-  <!-- Подключаем стили и скрипт библиотеки json-viewer -->
+  <!-- 1. Подключаем стили и скрипт библиотеки. Атрибут defer - дополнительная подсказка браузеру. -->
   <link href="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.1/json-viewer.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.1/json-viewer.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.1/json-viewer.min.js" defer></script>
   
   <style>
     body { 
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       padding: 0;
       margin: 0;
+      background-color: #f8f9fa;
     }
     #json-container { 
       padding: 20px; 
@@ -20,6 +21,7 @@
     }
     h1 {
       padding-left: 20px;
+      color: #343a40;
     }
   </style>
 </head>
@@ -29,32 +31,36 @@
   <div id="json-container">Загрузка меню...</div>
 
   <script>
-    const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
-    const container = document.getElementById('json-container');
+    // 2. ЖДЕМ, ПОКА ВСЯ СТРАНИЦА (ВКЛЮЧАЯ СКРИПТ ВЫШЕ) ПОЛНОСТЬЮ ЗАГРУЗИТСЯ
+    document.addEventListener('DOMContentLoaded', () => {
+    
+      const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
+      const container = document.getElementById('json-container');
 
-    fetch(jsonUrl)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Ошибка загрузки: ${response.status} ${response.statusText}`);
-        }
-        return response.json();
-      })
-      .then(jsonData => {
-        container.innerHTML = ''; 
+      fetch(jsonUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Ошибка загрузки: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(jsonData => {
+          container.innerHTML = ''; 
 
-        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-        // Правильное название класса: JSONViewer
-        const viewer = new JSONViewer({
-          container: container,
-          data: jsonData,
-          theme: 'light',
-          expand: false
+          // 3. ТЕПЕРЬ МЫ УВЕРЕНЫ, ЧТО JSONViewer СУЩЕСТВУЕТ, И ВЫЗЫВАЕМ ЕГО
+          const viewer = new JSONViewer({
+            container: container,
+            data: jsonData,
+            theme: 'light',
+            expand: false // true - развернуть все по умолчанию, false - свернуть
+          });
+        })
+        .catch(error => {
+          console.error('Критическая ошибка:', error);
+          container.innerHTML = `<h2>Не удалось загрузить или отобразить JSON.</h2><p>${error.message}</p><p>Откройте консоль (F12) для деталей.</p>`;
         });
-      })
-      .catch(error => {
-        console.error('Критическая ошибка:', error);
-        container.innerHTML = `<h2>Не удалось загрузить или отобразить JSON.</h2><p>${error}</p>`;
-      });
+
+    });
   </script>
 
 </body>
