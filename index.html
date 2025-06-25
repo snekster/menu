@@ -1,68 +1,439 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Интерактивное меню</title>
-  
-  <!-- 1. Подключаем JS и CSS от НОВОЙ, самодостаточной библиотеки -->
-  <link href="https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@0.20.1/dist/vanilla-jsoneditor.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@0.20.1/dist/vanilla-jsoneditor.min.js"></script>
-  
-  <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    /* Задаем контейнеру высоту, чтобы редактор отобразился */
-    #json-container {
-      width: 100%;
-      height: 100vh; /* Редактор займет всю высоту экрана */
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Interactive Graph</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .controls input {
+            width: 300px;
+            padding: 8px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 12px;
+        }
+        
+        .controls button {
+            padding: 8px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .controls button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .graph-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .node {
+            fill: #69b3ff;
+            stroke: #fff;
+            stroke-width: 2px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .node:hover {
+            fill: #ff6b6b;
+            stroke-width: 4px;
+        }
+        
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+            stroke-width: 2px;
+        }
+        
+        .node-label {
+            font-size: 12px;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+    </style>
 </head>
 <body>
-  <!-- H1 больше не нужен, редактор сам займет все место -->
-  <div id="json-container"></div>
+    <div class="container">
+        <div class="controls">
+            <div>
+                <input type="text" id="jsonUrl" placeholder="GitHub Raw JSON URL (https://raw.githubusercontent.com/...)" 
+                       value="https://raw.githubusercontent.com/username/repo/main/data.json">
+                <button onclick="loadData()">Load JSON</button>
+                <button onclick="resetView()">Reset View</button>
+            </div>
+            <div>
+                <input type="range" id="forceStrength" min="10" max="500" value="100" onchange="updateForce()">
+                <label>Force Strength</label>
+            </div>
+        </div>
+        
+        <div class="info">
+            <div>Nodes: <span id="nodeCount">0</span></div>
+            <div>Links: <span id="linkCount">0</span></div>
+            <div>Drag nodes to rearrange</div>
+            <div>Scroll to zoom</div>
+        </div>
+        
+        <div class="graph-container">
+            <svg id="graph"></svg>
+        </div>
+        
+        <div class="tooltip" id="tooltip" style="display: none;"></div>
+    </div>
 
-  <script>
-    // Ждем, пока страница и скрипт библиотеки загрузятся
-    document.addEventListener('DOMContentLoaded', () => {
-    
-      const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
-      const container = document.getElementById('json-container');
-
-      fetch(jsonUrl)
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Ошибка сети при загрузке JSON: ${response.statusText}`);
-          }
-          return response.json();
-        })
-        .then(jsonData => {
-          // Очищаем контейнер
-          container.innerHTML = ''; 
-
-          // Создаем экземпляр нового, правильного редактора
-          const editor = new JSONEditor(container, {
-            content: {
-              json: jsonData
-            },
-            // Устанавливаем режим "только для чтения", чтобы случайно не отредактировать
-            readOnly: true,
-            // Режим по умолчанию 'tree' (дерево), что нам и нужно
-            mode: 'tree'
-          });
-        })
-        .catch(error => {
-          console.error('Критическая ошибка:', error);
-          // Выводим ошибку прямо в контейнер, если что-то пошло не так
-          container.style.padding = '20px';
-          container.style.color = 'red';
-          container.innerHTML = `<h2>Не удалось отобразить меню:</h2><p>${error.message}</p>`;
+    <script>
+        let graphData = { nodes: [], links: [] };
+        let simulation;
+        let svg, g, link, node, nodeLabels;
+        
+        // Initialize SVG
+        function initSVG() {
+            const container = d3.select('.graph-container');
+            const containerRect = container.node().getBoundingClientRect();
+            
+            svg = d3.select('#graph')
+                .attr('width', containerRect.width)
+                .attr('height', containerRect.height);
+            
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 10])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom);
+            
+            g = svg.append('g');
+        }
+        
+        // Convert JSON to graph format
+        function jsonToGraph(obj, parentId = null, processedObjects = new Set()) {
+            const nodes = [];
+            const links = [];
+            
+            function traverse(current, parent = null, key = 'root') {
+                // Prevent infinite recursion
+                if (typeof current === 'object' && current !== null) {
+                    if (processedObjects.has(current)) return null;
+                    processedObjects.add(current);
+                }
+                
+                const nodeId = `${key}_${Math.random().toString(36).substr(2, 9)}`;
+                
+                let nodeLabel = key;
+                let nodeValue = '';
+                
+                if (typeof current === 'object' && current !== null) {
+                    if (Array.isArray(current)) {
+                        nodeLabel = `${key}[]`;
+                        nodeValue = `Array(${current.length})`;
+                    } else {
+                        nodeValue = `Object(${Object.keys(current).length} keys)`;
+                    }
+                } else {
+                    nodeValue = String(current);
+                    if (nodeValue.length > 20) {
+                        nodeValue = nodeValue.substring(0, 20) + '...';
+                    }
+                }
+                
+                nodes.push({
+                    id: nodeId,
+                    label: nodeLabel,
+                    value: nodeValue,
+                    type: Array.isArray(current) ? 'array' : typeof current,
+                    fullData: current
+                });
+                
+                if (parent) {
+                    links.push({
+                        source: parent,
+                        target: nodeId
+                    });
+                }
+                
+                if (typeof current === 'object' && current !== null) {
+                    if (Array.isArray(current)) {
+                        current.forEach((item, index) => {
+                            traverse(item, nodeId, `[${index}]`);
+                        });
+                    } else {
+                        Object.entries(current).forEach(([k, v]) => {
+                            traverse(v, nodeId, k);
+                        });
+                    }
+                }
+                
+                return nodeId;
+            }
+            
+            traverse(obj);
+            return { nodes, links };
+        }
+        
+        // Load data from URL
+        async function loadData() {
+            const url = document.getElementById('jsonUrl').value.trim();
+            if (!url) {
+                alert('Please enter a JSON URL');
+                return;
+            }
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                graphData = jsonToGraph(data);
+                updateGraph();
+                updateStats();
+            } catch (error) {
+                alert(`Error loading JSON: ${error.message}`);
+                console.error('Error:', error);
+            }
+        }
+        
+        // Update graph visualization
+        function updateGraph() {
+            g.selectAll('*').remove();
+            
+            if (graphData.nodes.length === 0) return;
+            
+            // Create simulation
+            simulation = d3.forceSimulation(graphData.nodes)
+                .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(svg.attr('width') / 2, svg.attr('height') / 2))
+                .force('collision', d3.forceCollide().radius(30));
+            
+            // Create links
+            link = g.append('g')
+                .selectAll('line')
+                .data(graphData.links)
+                .enter().append('line')
+                .attr('class', 'link');
+            
+            // Create nodes
+            node = g.append('g')
+                .selectAll('circle')
+                .data(graphData.nodes)
+                .enter().append('circle')
+                .attr('class', 'node')
+                .attr('r', d => {
+                    if (d.type === 'object') return 20;
+                    if (d.type === 'array') return 15;
+                    return 10;
+                })
+                .style('fill', d => {
+                    switch(d.type) {
+                        case 'object': return '#ff6b6b';
+                        case 'array': return '#4ecdc4';
+                        case 'string': return '#45b7d1';
+                        case 'number': return '#96ceb4';
+                        case 'boolean': return '#ffeaa7';
+                        default: return '#dda0dd';
+                    }
+                })
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended))
+                .on('mouseover', showTooltip)
+                .on('mouseout', hideTooltip);
+            
+            // Create labels
+            nodeLabels = g.append('g')
+                .selectAll('text')
+                .data(graphData.nodes)
+                .enter().append('text')
+                .attr('class', 'node-label')
+                .text(d => d.label);
+            
+            // Update positions on tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+                
+                nodeLabels
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y + 5);
+            });
+        }
+        
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+        
+        // Tooltip functions
+        function showTooltip(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.display = 'block';
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY - 10) + 'px';
+            
+            let content = `<strong>${d.label}</strong><br>`;
+            content += `Type: ${d.type}<br>`;
+            content += `Value: ${d.value}<br>`;
+            
+            if (typeof d.fullData === 'object' && d.fullData !== null) {
+                content += `<br><pre>${JSON.stringify(d.fullData, null, 2).substring(0, 200)}${JSON.stringify(d.fullData, null, 2).length > 200 ? '...' : ''}</pre>`;
+            }
+            
+            tooltip.innerHTML = content;
+        }
+        
+        function hideTooltip() {
+            document.getElementById('tooltip').style.display = 'none';
+        }
+        
+        // Update force strength
+        function updateForce() {
+            const strength = -document.getElementById('forceStrength').value;
+            if (simulation) {
+                simulation.force('charge').strength(strength);
+                simulation.alpha(0.3).restart();
+            }
+        }
+        
+        // Reset view
+        function resetView() {
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                d3.zoomIdentity
+            );
+        }
+        
+        // Update statistics
+        function updateStats() {
+            document.getElementById('nodeCount').textContent = graphData.nodes.length;
+            document.getElementById('linkCount').textContent = graphData.links.length;
+        }
+        
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initSVG();
+            
+            // Load sample data
+            const sampleData = {
+                "name": "Sample Data",
+                "users": [
+                    {"id": 1, "name": "Alice", "active": true},
+                    {"id": 2, "name": "Bob", "active": false}
+                ],
+                "config": {
+                    "theme": "dark",
+                    "settings": {
+                        "notifications": true,
+                        "privacy": "public"
+                    }
+                }
+            };
+            
+            graphData = jsonToGraph(sampleData);
+            updateGraph();
+            updateStats();
         });
-    });
-  </script>
-
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const container = d3.select('.graph-container');
+            const containerRect = container.node().getBoundingClientRect();
+            svg.attr('width', containerRect.width)
+               .attr('height', containerRect.height);
+            
+            if (simulation) {
+                simulation.force('center', d3.forceCenter(containerRect.width / 2, containerRect.height / 2));
+                simulation.alpha(0.3).restart();
+            }
+        });
+    </script>
 </body>
 </html>
