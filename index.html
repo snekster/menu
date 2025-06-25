@@ -1,57 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Визуализация меню как на JSON Crack</title>
+  <meta charset="UTF-8">
+  <title>Интерактивное меню</title>
+  
+  <!-- Подключаем стили и скрипт библиотеки json-viewer -->
+  <link href="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.1/json-viewer.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.1/json-viewer.min.js"></script>
+  
   <style>
-    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
-    iframe { width: 100%; height: 100%; border: none; }
-    #loader {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-family: sans-serif;
-      font-size: 24px;
-      color: #555;
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      padding: 0;
+      margin: 0;
+    }
+    #json-container { 
+      padding: 20px; 
+      box-sizing: border-box;
+    }
+    h1 {
+      padding-left: 20px;
     }
   </style>
 </head>
 <body>
 
-  <div id="loader">Загрузка данных...</div>
-  <iframe id="json-crack-embed"></iframe>
+  <h1>Структура меню</h1>
+  <div id="json-container">Загрузка меню...</div>
 
   <script>
-    // --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
     // Используем CDN jsDelivr, который решает проблему CORS
     const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
     
-    const iframe = document.getElementById('json-crack-embed');
-    const loader = document.getElementById('loader');
+    const container = document.getElementById('json-container');
 
-    // Загружаем ваш JSON
     fetch(jsonUrl)
       .then(response => {
         if (!response.ok) {
-          throw new Error(`Ошибка сети: ${response.statusText}`);
+          throw new Error(`Ошибка загрузки: ${response.status} ${response.statusText}`);
         }
-        return response.text(); // Получаем как текст, чтобы передать в URL
+        return response.json(); // Сразу парсим в JSON-объект
       })
       .then(jsonData => {
-        // Кодируем JSON для безопасной передачи в URL
-        const encodedJson = encodeURIComponent(jsonData);
-        
-        // Формируем URL для встраивания и устанавливаем его в iframe
-        iframe.src = `https://jsoncrack.com/widget?json=${encodedJson}`;
-        
-        // Когда iframe загрузится, убираем надпись "Загрузка"
-        iframe.onload = () => {
-          loader.style.display = 'none';
-        };
+        // Очищаем контейнер от надписи "Загрузка..."
+        container.innerHTML = ''; 
+
+        // Создаем новый экземпляр вьюера
+        const viewer = new JsonViewer({
+          container: container, // Куда вставить
+          data: jsonData,       // Какие данные показать
+          theme: 'light',       // Тема: 'light' или 'dark'
+          expand: false         // false, чтобы меню было свернуто по умолчанию (удобно для больших файлов)
+        });
       })
       .catch(error => {
-        console.error('Не удалось загрузить JSON:', error);
-        loader.innerText = `Ошибка при загрузке menu.json. Проверьте консоль (F12).`;
+        console.error('Критическая ошибка:', error);
+        container.innerHTML = `<h2>Не удалось загрузить или отобразить JSON.</h2><p>${error}</p>`;
       });
   </script>
 
