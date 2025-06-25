@@ -75,32 +75,56 @@
             height: 100%;
         }
         
-        .node {
-            fill: #69b3ff;
-            stroke: #fff;
-            stroke-width: 2px;
+        .node-rect {
+            fill: #2d3748;
+            stroke: #4a5568;
+            stroke-width: 1px;
             cursor: pointer;
-            transition: all 0.3s;
+            rx: 4;
+            ry: 4;
         }
         
-        .node:hover {
-            fill: #ff6b6b;
-            stroke-width: 4px;
+        .node-rect:hover {
+            fill: #4a5568;
+            stroke: #63b3ed;
+            stroke-width: 2px;
         }
+        
+        .node-rect.object { fill: #2b6cb0; stroke: #3182ce; }
+        .node-rect.array { fill: #2f855a; stroke: #38a169; }
+        .node-rect.string { fill: #d69e2e; stroke: #ed8936; }
+        .node-rect.number { fill: #805ad5; stroke: #9f7aea; }
+        .node-rect.boolean { fill: #e53e3e; stroke: #f56565; }
+        .node-rect.null { fill: #4a5568; stroke: #718096; }
         
         .link {
-            stroke: #999;
-            stroke-opacity: 0.6;
-            stroke-width: 2px;
+            stroke: #4a5568;
+            stroke-opacity: 0.8;
+            stroke-width: 1.5px;
         }
         
-        .node-label {
-            font-size: 12px;
-            fill: white;
-            text-anchor: middle;
+        .node-key {
+            font-size: 11px;
+            fill: #a0aec0;
+            text-anchor: start;
             pointer-events: none;
-            font-weight: bold;
-            text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+            font-weight: 500;
+        }
+        
+        .node-value {
+            font-size: 10px;
+            fill: white;
+            text-anchor: start;
+            pointer-events: none;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .node-type {
+            font-size: 9px;
+            fill: #718096;
+            text-anchor: end;
+            pointer-events: none;
+            font-style: italic;
         }
         
         .tooltip {
@@ -122,7 +146,7 @@
         <div class="controls">
             <div>
                 <input type="text" id="jsonUrl" placeholder="GitHub Raw JSON URL (https://raw.githubusercontent.com/...)" 
-                       value="https://raw.githubusercontent.com/snekster/menu/main/data.json">
+                       value="https://raw.githubusercontent.com/username/repo/main/data.json">
                 <button onclick="loadData()">Load JSON</button>
                 <button onclick="resetView()">Reset View</button>
             </div>
@@ -203,12 +227,18 @@
                     }
                 }
                 
+                const nodeType = current === null ? 'null' : 
+                               Array.isArray(current) ? 'array' : 
+                               typeof current;
+                
                 nodes.push({
                     id: nodeId,
-                    label: nodeLabel,
+                    key: nodeLabel,
                     value: nodeValue,
-                    type: Array.isArray(current) ? 'array' : typeof current,
-                    fullData: current
+                    type: nodeType,
+                    fullData: current,
+                    width: Math.max(120, Math.min(200, nodeLabel.length * 8 + nodeValue.length * 6 + 40)),
+                    height: 50
                 });
                 
                 if (parent) {
@@ -268,10 +298,10 @@
             
             // Create simulation
             simulation = d3.forceSimulation(graphData.nodes)
-                .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(100))
-                .force('charge', d3.forceManyBody().strength(-300))
+                .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(150))
+                .force('charge', d3.forceManyBody().strength(-800))
                 .force('center', d3.forceCenter(svg.attr('width') / 2, svg.attr('height') / 2))
-                .force('collision', d3.forceCollide().radius(30));
+                .force('collision', d3.forceCollide().radius(d => Math.max(d.width, d.height) / 2 + 10));
             
             // Create links
             link = g.append('g')
@@ -280,27 +310,12 @@
                 .enter().append('line')
                 .attr('class', 'link');
             
-            // Create nodes
-            node = g.append('g')
-                .selectAll('circle')
+            // Create node groups
+            const nodeGroup = g.append('g')
+                .selectAll('g')
                 .data(graphData.nodes)
-                .enter().append('circle')
-                .attr('class', 'node')
-                .attr('r', d => {
-                    if (d.type === 'object') return 20;
-                    if (d.type === 'array') return 15;
-                    return 10;
-                })
-                .style('fill', d => {
-                    switch(d.type) {
-                        case 'object': return '#ff6b6b';
-                        case 'array': return '#4ecdc4';
-                        case 'string': return '#45b7d1';
-                        case 'number': return '#96ceb4';
-                        case 'boolean': return '#ffeaa7';
-                        default: return '#dda0dd';
-                    }
-                })
+                .enter().append('g')
+                .attr('class', 'node-group')
                 .call(d3.drag()
                     .on('start', dragstarted)
                     .on('drag', dragged)
@@ -308,13 +323,38 @@
                 .on('mouseover', showTooltip)
                 .on('mouseout', hideTooltip);
             
-            // Create labels
-            nodeLabels = g.append('g')
-                .selectAll('text')
-                .data(graphData.nodes)
-                .enter().append('text')
-                .attr('class', 'node-label')
-                .text(d => d.label);
+            // Create rectangles
+            node = nodeGroup.append('rect')
+                .attr('class', d => `node-rect ${d.type}`)
+                .attr('width', d => d.width)
+                .attr('height', d => d.height)
+                .attr('x', d => -d.width / 2)
+                .attr('y', d => -d.height / 2);
+            
+            // Create key text
+            const nodeKeys = nodeGroup.append('text')
+                .attr('class', 'node-key')
+                .attr('x', d => -d.width / 2 + 8)
+                .attr('y', d => -d.height / 2 + 16)
+                .text(d => d.key.length > 20 ? d.key.substring(0, 20) + '...' : d.key);
+            
+            // Create value text
+            const nodeValues = nodeGroup.append('text')
+                .attr('class', 'node-value')
+                .attr('x', d => -d.width / 2 + 8)
+                .attr('y', d => -d.height / 2 + 32)
+                .text(d => {
+                    if (d.type === 'object' || d.type === 'array') return d.value;
+                    const val = String(d.value);
+                    return val.length > 25 ? val.substring(0, 25) + '...' : val;
+                });
+            
+            // Create type text
+            const nodeTypes = nodeGroup.append('text')
+                .attr('class', 'node-type')
+                .attr('x', d => d.width / 2 - 8)
+                .attr('y', d => d.height / 2 - 8)
+                .text(d => d.type);
             
             // Update positions on tick
             simulation.on('tick', () => {
@@ -324,13 +364,8 @@
                     .attr('x2', d => d.target.x)
                     .attr('y2', d => d.target.y);
                 
-                node
-                    .attr('cx', d => d.x)
-                    .attr('cy', d => d.y);
-                
-                nodeLabels
-                    .attr('x', d => d.x)
-                    .attr('y', d => d.y + 5);
+                nodeGroup
+                    .attr('transform', d => `translate(${d.x},${d.y})`);
             });
         }
         
@@ -359,12 +394,18 @@
             tooltip.style.left = (event.pageX + 10) + 'px';
             tooltip.style.top = (event.pageY - 10) + 'px';
             
-            let content = `<strong>${d.label}</strong><br>`;
+            let content = `<strong>${d.key}</strong><br>`;
             content += `Type: ${d.type}<br>`;
-            content += `Value: ${d.value}<br>`;
+            
+            if (d.type === 'object' || d.type === 'array') {
+                content += `${d.value}<br>`;
+            } else {
+                content += `Value: ${d.value}<br>`;
+            }
             
             if (typeof d.fullData === 'object' && d.fullData !== null) {
-                content += `<br><pre>${JSON.stringify(d.fullData, null, 2).substring(0, 200)}${JSON.stringify(d.fullData, null, 2).length > 200 ? '...' : ''}</pre>`;
+                const preview = JSON.stringify(d.fullData, null, 2);
+                content += `<br><pre style="font-size: 10px; max-height: 200px; overflow-y: auto;">${preview.length > 300 ? preview.substring(0, 300) + '...' : preview}</pre>`;
             }
             
             tooltip.innerHTML = content;
@@ -397,22 +438,47 @@
             document.getElementById('linkCount').textContent = graphData.links.length;
         }
         
-        // Initialize on load
+            // Initialize on load
         window.addEventListener('load', () => {
             initSVG();
             
             // Load sample data
             const sampleData = {
-                "name": "Sample Data",
+                "name": "Sample Project",
+                "version": "1.0.0",
+                "dependencies": {
+                    "react": "^18.0.0",
+                    "lodash": "^4.17.21"
+                },
                 "users": [
-                    {"id": 1, "name": "Alice", "active": true},
-                    {"id": 2, "name": "Bob", "active": false}
+                    {
+                        "id": 1, 
+                        "name": "Alice Johnson", 
+                        "email": "alice@example.com",
+                        "active": true,
+                        "roles": ["admin", "user"]
+                    },
+                    {
+                        "id": 2, 
+                        "name": "Bob Smith", 
+                        "email": "bob@example.com",
+                        "active": false,
+                        "settings": {
+                            "theme": "dark",
+                            "notifications": true
+                        }
+                    }
                 ],
                 "config": {
-                    "theme": "dark",
-                    "settings": {
-                        "notifications": true,
-                        "privacy": "public"
+                    "api": {
+                        "baseURL": "https://api.example.com",
+                        "timeout": 5000,
+                        "retries": 3
+                    },
+                    "features": {
+                        "darkMode": true,
+                        "analytics": false,
+                        "beta": null
                     }
                 }
             };
