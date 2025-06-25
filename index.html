@@ -1,31 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Interactive graphs JSON</title>
-  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <title>Визуализация меню как на JSON Crack</title>
+  <style>
+    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+    iframe { width: 100%; height: 100%; border: none; }
+    #loader {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: sans-serif;
+      font-size: 24px;
+      color: #555;
+    }
+  </style>
 </head>
 <body>
-  <div id="myPlot" style="width:100%;max-width:700px"></div>
+
+  <div id="loader">Загрузка данных...</div>
+  <iframe id="json-crack-embed"></iframe>
 
   <script>
-    // URL для необработанного файла data.json на GitHub
-    const url = 'https://raw.github.com/snekster/menu/main/menu.json';
+    // URL вашего JSON-файла
+    const jsonUrl = 'https://raw.githubusercontent.com/snekster/menu/main/menu.json';
+    const iframe = document.getElementById('json-crack-embed');
+    const loader = document.getElementById('loader');
 
-    fetch(url)
-      .then(response => response.json())
-      .then(data => {
-        const plotData = [{
-          x: data.x,
-          y: data.y,
-          type: 'bar'
-        }];
-
-        const layout = {
-          title: 'Продажи фруктов'
+    // Загружаем ваш JSON
+    fetch(jsonUrl)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Ошибка сети: ${response.statusText}`);
+        }
+        return response.text(); // Получаем как текст, чтобы передать в URL
+      })
+      .then(jsonData => {
+        // Кодируем JSON для безопасной передачи в URL
+        const encodedJson = encodeURIComponent(jsonData);
+        
+        // Формируем URL для встраивания и устанавливаем его в iframe
+        iframe.src = `https://jsoncrack.com/widget?json=${encodedJson}`;
+        
+        // Когда iframe загрузится, убираем надпись "Загрузка"
+        iframe.onload = () => {
+          loader.style.display = 'none';
         };
-
-        Plotly.newPlot('myPlot', plotData, layout);
+      })
+      .catch(error => {
+        console.error('Не удалось загрузить JSON:', error);
+        loader.innerText = `Ошибка при загрузке menu.json. Проверьте консоль (F12).`;
       });
   </script>
+
 </body>
 </html>
