@@ -22,8 +22,10 @@
   <iframe id="json-crack-embed"></iframe>
 
   <script>
-    // URL вашего JSON-файла
-    const jsonUrl = 'https://raw.githubusercontent.com/snekster/menu/main/menu.json';
+    // --- ИЗМЕНЕНИЕ ЗДЕСЬ ---
+    // Используем CDN jsDelivr, который решает проблему CORS
+    const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
+    
     const iframe = document.getElementById('json-crack-embed');
     const loader = document.getElementById('loader');
 
