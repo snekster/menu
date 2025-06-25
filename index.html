@@ -1,64 +1,67 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <title>Интерактивное меню</title>
   
-  <!-- Ссылка на CSS была правильной, оставляем ее -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.0.0/dist/index.css">
+  <!-- 1. Подключаем JS и CSS от НОВОЙ, самодостаточной библиотеки -->
+  <link href="https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@0.20.1/dist/vanilla-jsoneditor.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/vanilla-jsoneditor@0.20.1/dist/vanilla-jsoneditor.min.js"></script>
   
   <style>
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
       margin: 0;
-      background-color: #f8f9fa;
+      padding: 0;
     }
-    #json-container { 
-      padding: 20px; 
-      box-sizing: border-box;
-    }
-    h1 {
-      padding-left: 20px;
-      color: #343a40;
+    /* Задаем контейнеру высоту, чтобы редактор отобразился */
+    #json-container {
+      width: 100%;
+      height: 100vh; /* Редактор займет всю высоту экрана */
     }
   </style>
 </head>
 <body>
+  <!-- H1 больше не нужен, редактор сам займет все место -->
+  <div id="json-container"></div>
 
-  <h1>Структура меню</h1>
-  <div id="json-container">Загрузка меню...</div>
+  <script>
+    // Ждем, пока страница и скрипт библиотеки загрузятся
+    document.addEventListener('DOMContentLoaded', () => {
+    
+      const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
+      const container = document.getElementById('json-container');
 
-  <script type="module">
-    // --- ГЛАВНОЕ ИЗМЕНЕНИЕ ---
-    // Используем специальный URL "+esm" от jsDelivr, 
-    // который автоматически разрешает вложенные зависимости, такие как "lit".
-    import JSONViewer from 'https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.0.0/+esm';
-  
-    const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
-    const container = document.getElementById('json-container');
+      fetch(jsonUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Ошибка сети при загрузке JSON: ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(jsonData => {
+          // Очищаем контейнер
+          container.innerHTML = ''; 
 
-    // Остальной код остается без изменений, т.к. он был логически верен.
-    fetch(jsonUrl)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Ошибка загрузки: ${response.status} ${response.statusText}`);
-        }
-        return response.json();
-      })
-      .then(jsonData => {
-        container.innerHTML = ''; 
-
-        const viewer = new JSONViewer({
-          container: container,
-          data: jsonData,
-          theme: 'light', 
-          expand: false
+          // Создаем экземпляр нового, правильного редактора
+          const editor = new JSONEditor(container, {
+            content: {
+              json: jsonData
+            },
+            // Устанавливаем режим "только для чтения", чтобы случайно не отредактировать
+            readOnly: true,
+            // Режим по умолчанию 'tree' (дерево), что нам и нужно
+            mode: 'tree'
+          });
+        })
+        .catch(error => {
+          console.error('Критическая ошибка:', error);
+          // Выводим ошибку прямо в контейнер, если что-то пошло не так
+          container.style.padding = '20px';
+          container.style.color = 'red';
+          container.innerHTML = `<h2>Не удалось отобразить меню:</h2><p>${error.message}</p>`;
         });
-      })
-      .catch(error => {
-        console.error('Критическая ошибка:', error);
-        container.innerHTML = `<h2>Не удалось загрузить или отобразить JSON.</h2><p>${error.message}</p>`;
-      });
+    });
   </script>
 
 </body>
