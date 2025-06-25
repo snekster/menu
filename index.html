@@ -4,9 +4,9 @@
   <meta charset="UTF-8">
   <title>Интерактивное меню</title>
   
-  <!-- 1. Подключаем стили и скрипт библиотеки. Атрибут defer - дополнительная подсказка браузеру. -->
-  <link href="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.1/json-viewer.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/json-viewer-js@1.0.1/json-viewer.min.js" defer></script>
+  <!-- 1. ИСПОЛЬЗУЕМ НОВЫЕ, ПРАВИЛЬНЫЕ ССЫЛКИ НА АКТУАЛЬНУЮ БИБЛИОТЕКУ -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.0.0/dist/json-viewer.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.0.0/dist/json-viewer.min.js"></script>
   
   <style>
     body { 
@@ -31,7 +31,7 @@
   <div id="json-container">Загрузка меню...</div>
 
   <script>
-    // 2. ЖДЕМ, ПОКА ВСЯ СТРАНИЦА (ВКЛЮЧАЯ СКРИПТ ВЫШЕ) ПОЛНОСТЬЮ ЗАГРУЗИТСЯ
+    // Ждем, пока вся страница и все скрипты будут полностью загружены и готовы
     document.addEventListener('DOMContentLoaded', () => {
     
       const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
@@ -47,19 +47,18 @@
         .then(jsonData => {
           container.innerHTML = ''; 
 
-          // 3. ТЕПЕРЬ МЫ УВЕРЕНЫ, ЧТО JSONViewer СУЩЕСТВУЕТ, И ВЫЗЫВАЕМ ЕГО
+          // Теперь вызов JSONViewer должен работать, т.к. скрипт библиотеки загружен
           const viewer = new JSONViewer({
             container: container,
             data: jsonData,
-            theme: 'light',
-            expand: false // true - развернуть все по умолчанию, false - свернуть
+            theme: 'light', 
+            expand: false
           });
         })
         .catch(error => {
           console.error('Критическая ошибка:', error);
-          container.innerHTML = `<h2>Не удалось загрузить или отобразить JSON.</h2><p>${error.message}</p><p>Откройте консоль (F12) для деталей.</p>`;
+          container.innerHTML = `<h2>Не удалось загрузить или отобразить JSON.</h2><p>${error.message}</p>`;
         });
-
     });
   </script>
 
