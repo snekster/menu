@@ -29,9 +29,7 @@
   <div id="json-container">Загрузка меню...</div>
 
   <script>
-    // Используем CDN jsDelivr, который решает проблему CORS
     const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
-    
     const container = document.getElementById('json-container');
 
     fetch(jsonUrl)
@@ -39,18 +37,18 @@
         if (!response.ok) {
           throw new Error(`Ошибка загрузки: ${response.status} ${response.statusText}`);
         }
-        return response.json(); // Сразу парсим в JSON-объект
+        return response.json();
       })
       .then(jsonData => {
-        // Очищаем контейнер от надписи "Загрузка..."
         container.innerHTML = ''; 
 
-        // Создаем новый экземпляр вьюера
-        const viewer = new JsonViewer({
-          container: container, // Куда вставить
-          data: jsonData,       // Какие данные показать
-          theme: 'light',       // Тема: 'light' или 'dark'
-          expand: false         // false, чтобы меню было свернуто по умолчанию (удобно для больших файлов)
+        // --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+        // Правильное название класса: JSONViewer
+        const viewer = new JSONViewer({
+          container: container,
+          data: jsonData,
+          theme: 'light',
+          expand: false
         });
       })
       .catch(error => {
