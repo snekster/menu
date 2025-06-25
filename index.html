@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>Интерактивное меню</title>
   
-  <!-- 1. ИЗМЕНЕНИЕ: Загружаем правильный CSS-файл. Название было 'index.css'. -->
+  <!-- Ссылка на CSS была правильной, оставляем ее -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.0.0/dist/index.css">
   
   <style>
@@ -28,16 +28,16 @@
   <h1>Структура меню</h1>
   <div id="json-container">Загрузка меню...</div>
 
-  <!-- 2. ИЗМЕНЕНИЕ: Мы НЕ подключаем скрипт здесь. Мы импортируем его ниже. -->
-
-  <!-- 3. ИЗМЕНЕНИЕ: Весь наш код теперь находится внутри скрипта с type="module" -->
   <script type="module">
-    // 4. ИМПОРТИРУЕМ класс JSONViewer напрямую из CDN. Это современный стандарт.
-    import JSONViewer from 'https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.0.0/dist/json-viewer.min.js';
+    // --- ГЛАВНОЕ ИЗМЕНЕНИЕ ---
+    // Используем специальный URL "+esm" от jsDelivr, 
+    // который автоматически разрешает вложенные зависимости, такие как "lit".
+    import JSONViewer from 'https://cdn.jsdelivr.net/npm/@alenaksu/json-viewer@2.0.0/+esm';
   
     const jsonUrl = 'https://cdn.jsdelivr.net/gh/snekster/menu@main/menu.json';
     const container = document.getElementById('json-container');
 
+    // Остальной код остается без изменений, т.к. он был логически верен.
     fetch(jsonUrl)
       .then(response => {
         if (!response.ok) {
@@ -48,7 +48,6 @@
       .then(jsonData => {
         container.innerHTML = ''; 
 
-        // Теперь JSONViewer гарантированно определен, т.к. импорт завершился.
         const viewer = new JSONViewer({
           container: container,
           data: jsonData,
