@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON Interactive Graph</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .controls input {
+            width: 300px;
+            padding: 8px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 12px;
+        }
+        
+        .controls button {
+            padding: 8px 15px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .controls button:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+        }
+        
+        .info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .graph-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .node-rect {
+            fill: #2d3748;
+            stroke: #4a5568;
+            stroke-width: 1px;
+            cursor: pointer;
+            rx: 4;
+            ry: 4;
+        }
+        
+        .node-rect:hover {
+            fill: #4a5568;
+            stroke: #63b3ed;
+            stroke-width: 2px;
+        }
+        
+        .node-rect.object { fill: #2b6cb0; stroke: #3182ce; }
+        .node-rect.array { fill: #2f855a; stroke: #38a169; }
+        .node-rect.string { fill: #d69e2e; stroke: #ed8936; }
+        .node-rect.number { fill: #805ad5; stroke: #9f7aea; }
+        .node-rect.boolean { fill: #e53e3e; stroke: #f56565; }
+        .node-rect.null { fill: #4a5568; stroke: #718096; }
+        
+        .link {
+            stroke: #4a5568;
+            stroke-opacity: 0.8;
+            stroke-width: 1.5px;
+        }
+        
+        .node-key {
+            font-size: 11px;
+            fill: #a0aec0;
+            text-anchor: start;
+            pointer-events: none;
+            font-weight: 500;
+        }
+        
+        .node-value {
+            font-size: 10px;
+            fill: white;
+            text-anchor: start;
+            pointer-events: none;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .node-type {
+            font-size: 9px;
+            fill: #718096;
+            text-anchor: end;
+            pointer-events: none;
+            font-style: italic;
+        }
+        
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 200px;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div>
+                <input type="text" id="jsonUrl" placeholder="GitHub Raw JSON URL (https://raw.githubusercontent.com/...)" 
+                       value="https://raw.githubusercontent.com/snekster/menu/main/data.json">
+                <button onclick="loadData()">Load JSON</button>
+                <button onclick="resetView()">Reset View</button>
+            </div>
+            <div>
+                <input type="range" id="forceStrength" min="10" max="500" value="100" onchange="updateForce()">
+                <label>Force Strength</label>
+            </div>
+        </div>
+        
+        <div class="info">
+            <div>Nodes: <span id="nodeCount">0</span></div>
+            <div>Links: <span id="linkCount">0</span></div>
+            <div>Drag nodes to rearrange</div>
+            <div>Scroll to zoom</div>
+        </div>
+        
+        <div class="graph-container">
+            <svg id="graph"></svg>
+        </div>
+        
+        <div class="tooltip" id="tooltip" style="display: none;"></div>
+    </div>
+
+    <script>
+        let graphData = { nodes: [], links: [] };
+        let simulation;
+        let svg, g, link, node, nodeLabels;
+        
+        // Initialize SVG
+        function initSVG() {
+            const container = d3.select('.graph-container');
+            const containerRect = container.node().getBoundingClientRect();
+            
+            svg = d3.select('#graph')
+                .attr('width', containerRect.width)
+                .attr('height', containerRect.height);
+            
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 10])
+                .on('zoom', (event) => {
+                    g.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom);
+            
+            g = svg.append('g');
+        }
+        
+        // Convert JSON to graph format
+        function jsonToGraph(obj, parentId = null, processedObjects = new Set()) {
+            const nodes = [];
+            const links = [];
+            
+            function traverse(current, parent = null, key = 'root') {
+                // Prevent infinite recursion
+                if (typeof current === 'object' && current !== null) {
+                    if (processedObjects.has(current)) return null;
+                    processedObjects.add(current);
+                }
+                
+                const nodeId = `${key}_${Math.random().toString(36).substr(2, 9)}`;
+                
+                let nodeLabel = key;
+                let nodeValue = '';
+                
+                if (typeof current === 'object' && current !== null) {
+                    if (Array.isArray(current)) {
+                        nodeLabel = `${key}[]`;
+                        nodeValue = `Array(${current.length})`;
+                    } else {
+                        nodeValue = `Object(${Object.keys(current).length} keys)`;
+                    }
+                } else {
+                    nodeValue = String(current);
+                    if (nodeValue.length > 20) {
+                        nodeValue = nodeValue.substring(0, 20) + '...';
+                    }
+                }
+                
+                const nodeType = current === null ? 'null' : 
+                               Array.isArray(current) ? 'array' : 
+                               typeof current;
+                
+                nodes.push({
+                    id: nodeId,
+                    key: nodeLabel,
+                    value: nodeValue,
+                    type: nodeType,
+                    fullData: current,
+                    width: Math.max(120, Math.min(200, nodeLabel.length * 8 + nodeValue.length * 6 + 40)),
+                    height: 50
+                });
+                
+                if (parent) {
+                    links.push({
+                        source: parent,
+                        target: nodeId
+                    });
+                }
+                
+                if (typeof current === 'object' && current !== null) {
+                    if (Array.isArray(current)) {
+                        current.forEach((item, index) => {
+                            traverse(item, nodeId, `[${index}]`);
+                        });
+                    } else {
+                        Object.entries(current).forEach(([k, v]) => {
+                            traverse(v, nodeId, k);
+                        });
+                    }
+                }
+                
+                return nodeId;
+            }
+            
+            traverse(obj);
+            return { nodes, links };
+        }
+        
+        // Load data from URL
+        async function loadData() {
+            const url = document.getElementById('jsonUrl').value.trim();
+            if (!url) {
+                alert('Please enter a JSON URL');
+                return;
+            }
+            
+            try {
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                graphData = jsonToGraph(data);
+                updateGraph();
+                updateStats();
+            } catch (error) {
+                alert(`Error loading JSON: ${error.message}`);
+                console.error('Error:', error);
+            }
+        }
+        
+        // Update graph visualization
+        function updateGraph() {
+            g.selectAll('*').remove();
+            
+            if (graphData.nodes.length === 0) return;
+            
+            // Create simulation
+            simulation = d3.forceSimulation(graphData.nodes)
+                .force('link', d3.forceLink(graphData.links).id(d => d.id).distance(150))
+                .force('charge', d3.forceManyBody().strength(-800))
+                .force('center', d3.forceCenter(svg.attr('width') / 2, svg.attr('height') / 2))
+                .force('collision', d3.forceCollide().radius(d => Math.max(d.width, d.height) / 2 + 10));
+            
+            // Create links
+            link = g.append('g')
+                .selectAll('line')
+                .data(graphData.links)
+                .enter().append('line')
+                .attr('class', 'link');
+            
+            // Create node groups
+            const nodeGroup = g.append('g')
+                .selectAll('g')
+                .data(graphData.nodes)
+                .enter().append('g')
+                .attr('class', 'node-group')
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended))
+                .on('mouseover', showTooltip)
+                .on('mouseout', hideTooltip);
+            
+            // Create rectangles
+            node = nodeGroup.append('rect')
+                .attr('class', d => `node-rect ${d.type}`)
+                .attr('width', d => d.width)
+                .attr('height', d => d.height)
+                .attr('x', d => -d.width / 2)
+                .attr('y', d => -d.height / 2);
+            
+            // Create key text
+            const nodeKeys = nodeGroup.append('text')
+                .attr('class', 'node-key')
+                .attr('x', d => -d.width / 2 + 8)
+                .attr('y', d => -d.height / 2 + 16)
+                .text(d => d.key.length > 20 ? d.key.substring(0, 20) + '...' : d.key);
+            
+            // Create value text
+            const nodeValues = nodeGroup.append('text')
+                .attr('class', 'node-value')
+                .attr('x', d => -d.width / 2 + 8)
+                .attr('y', d => -d.height / 2 + 32)
+                .text(d => {
+                    if (d.type === 'object' || d.type === 'array') return d.value;
+                    const val = String(d.value);
+                    return val.length > 25 ? val.substring(0, 25) + '...' : val;
+                });
+            
+            // Create type text
+            const nodeTypes = nodeGroup.append('text')
+                .attr('class', 'node-type')
+                .attr('x', d => d.width / 2 - 8)
+                .attr('y', d => d.height / 2 - 8)
+                .text(d => d.type);
+            
+            // Update positions on tick
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+                
+                nodeGroup
+                    .attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+        }
+        
+        // Drag functions
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+        
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+        
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+        
+        // Tooltip functions
+        function showTooltip(event, d) {
+            const tooltip = document.getElementById('tooltip');
+            tooltip.style.display = 'block';
+            tooltip.style.left = (event.pageX + 10) + 'px';
+            tooltip.style.top = (event.pageY - 10) + 'px';
+            
+            let content = `<strong>${d.key}</strong><br>`;
+            content += `Type: ${d.type}<br>`;
+            
+            if (d.type === 'object' || d.type === 'array') {
+                content += `${d.value}<br>`;
+            } else {
+                content += `Value: ${d.value}<br>`;
+            }
+            
+            if (typeof d.fullData === 'object' && d.fullData !== null) {
+                const preview = JSON.stringify(d.fullData, null, 2);
+                content += `<br><pre style="font-size: 10px; max-height: 200px; overflow-y: auto;">${preview.length > 300 ? preview.substring(0, 300) + '...' : preview}</pre>`;
+            }
+            
+            tooltip.innerHTML = content;
+        }
+        
+        function hideTooltip() {
+            document.getElementById('tooltip').style.display = 'none';
+        }
+        
+        // Update force strength
+        function updateForce() {
+            const strength = -document.getElementById('forceStrength').value;
+            if (simulation) {
+                simulation.force('charge').strength(strength);
+                simulation.alpha(0.3).restart();
+            }
+        }
+        
+        // Reset view
+        function resetView() {
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                d3.zoomIdentity
+            );
+        }
+        
+        // Update statistics
+        function updateStats() {
+            document.getElementById('nodeCount').textContent = graphData.nodes.length;
+            document.getElementById('linkCount').textContent = graphData.links.length;
+        }
+        
+            // Initialize on load
+        window.addEventListener('load', () => {
+            initSVG();
+            
+            // Load sample data
+            const sampleData = {
+                "name": "Sample Project",
+                "version": "1.0.0",
+                "dependencies": {
+                    "react": "^18.0.0",
+                    "lodash": "^4.17.21"
+                },
+                "users": [
+                    {
+                        "id": 1, 
+                        "name": "Alice Johnson", 
+                        "email": "alice@example.com",
+                        "active": true,
+                        "roles": ["admin", "user"]
+                    },
+                    {
+                        "id": 2, 
+                        "name": "Bob Smith", 
+                        "email": "bob@example.com",
+                        "active": false,
+                        "settings": {
+                            "theme": "dark",
+                            "notifications": true
+                        }
+                    }
+                ],
+                "config": {
+                    "api": {
+                        "baseURL": "https://api.example.com",
+                        "timeout": 5000,
+                        "retries": 3
+                    },
+                    "features": {
+                        "darkMode": true,
+                        "analytics": false,
+                        "beta": null
+                    }
+                }
+            };
+            
+            graphData = jsonToGraph(sampleData);
+            updateGraph();
+            updateStats();
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const container = d3.select('.graph-container');
+            const containerRect = container.node().getBoundingClientRect();
+            svg.attr('width', containerRect.width)
+               .attr('height', containerRect.height);
+            
+            if (simulation) {
+                simulation.force('center', d3.forceCenter(containerRect.width / 2, containerRect.height / 2));
+                simulation.alpha(0.3).restart();
+            }
+        });
+    </script>
+</body>
+</html>
